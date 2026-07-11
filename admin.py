@@ -77,7 +77,7 @@ def _manual_prepare(session: str, force: bool = False):
     storage_session = session
     if force:
         # A force test must never collide with today's scheduled/published block.
-        storage_session = f"manual_{session}_{now.strftime('%H%M%S')}"
+        storage_session = f"test_{session[0]}_{now.strftime('%H%M%S%f')}"
     try:
         result = send_for_approval(
             today,

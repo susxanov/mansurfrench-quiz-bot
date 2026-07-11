@@ -30,9 +30,9 @@ def is_workday(target_date: date) -> bool:
 
 
 def base_session(session: str) -> str:
-    if session == "morning" or session.startswith("manual_morning_"):
+    if session == "morning" or session.startswith("test_m_"):
         return "morning"
-    if session == "evening" or session.startswith("manual_evening_"):
+    if session == "evening" or session.startswith("test_e_"):
         return "evening"
     raise ValueError("Unknown session")
 
@@ -278,7 +278,7 @@ def send_for_approval(
         raise RuntimeError("Должно быть ровно 3 вопроса.")
 
     effective_session = base_session(session)
-    is_manual = session.startswith("manual_")
+    is_manual = session.startswith("test_")
     label = "Утро A1–A2" if effective_session == "morning" else "Вечер B1–B2"
     if is_manual:
         label = f"ТЕСТОВЫЙ БЛОК — {label}"

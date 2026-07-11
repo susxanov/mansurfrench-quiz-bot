@@ -40,5 +40,6 @@ def test_manual_force_uses_unique_session_key():
         admin._manual_prepare('morning', force=True)
 
     assert captured['force'] is True
-    assert captured['session'].startswith('manual_morning_')
+    assert captured['session'].startswith('test_m_')
+    assert len(captured['session']) <= 20
     assert captured['session'] != 'morning'
