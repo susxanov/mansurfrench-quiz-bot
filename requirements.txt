@@ -7,3 +7,4 @@ requests>=2.32,<3
 SQLAlchemy>=2.0.38,<3
 tzdata>=2025.1
 pytest>=8.3,<9
+tenacity>=9.0,<10
