@@ -94,13 +94,39 @@ def _generation_prompt(
 """.strip()
 
 
+def _strict_json_schema(schema: type[T]) -> dict:
+    """Build an OpenAI-compatible strict JSON schema.
+
+    OpenAI strict structured outputs require every property to be listed in
+    ``required`` and every object to reject unspecified properties. Pydantic
+    omits fields with defaults from ``required``, so we normalize recursively
+    before the request reaches the API.
+    """
+    raw = schema.model_json_schema()
+
+    def normalize(node):
+        if isinstance(node, dict):
+            properties = node.get("properties")
+            if isinstance(properties, dict):
+                node["required"] = list(properties.keys())
+                node["additionalProperties"] = False
+            for value in node.values():
+                normalize(value)
+        elif isinstance(node, list):
+            for value in node:
+                normalize(value)
+
+    normalize(raw)
+    return raw
+
+
 def _json_schema_for(schema: type[T], name: str) -> dict:
     return {
         "type": "json_schema",
         "json_schema": {
             "name": name,
             "strict": True,
-            "schema": schema.model_json_schema(),
+            "schema": _strict_json_schema(schema),
         },
     }
 

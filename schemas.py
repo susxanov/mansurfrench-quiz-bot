@@ -36,5 +36,5 @@ class CandidateQuestion(StrictModel):
 class ReviewResult(StrictModel):
     approved: bool
     verified_correct_option_id: int = Field(ge=0, le=3)
-    issues: list[str] = Field(default_factory=list, max_length=10)
+    issues: list[str] = Field(min_length=0, max_length=10)
     explanation_check: str = Field(min_length=5, max_length=300)
