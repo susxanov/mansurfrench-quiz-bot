@@ -72,8 +72,17 @@ def validate_question(
         errors.append("duplicate_options")
     if len(item.explanation) > 190:
         errors.append("explanation_too_long")
+    if len(item.explanation) < 20:
+        errors.append("explanation_too_short")
     if not re.search(r"[А-Яа-яЁё]", item.explanation):
         errors.append("explanation_must_be_russian")
+    explanation = item.explanation.strip()
+    if not explanation.endswith((".", "!", "?")):
+        errors.append("explanation_incomplete")
+    if explanation.count("«") != explanation.count("»"):
+        errors.append("explanation_unbalanced_quotes")
+    if re.search(r"\b(и|но|или|потому что|так как)\s*[.!?]?$", explanation, re.I):
+        errors.append("explanation_incomplete")
 
     if expected_type == "translation":
         if not re.search(r"[А-Яа-яЁё]", item.prompt):

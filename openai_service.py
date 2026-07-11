@@ -9,7 +9,7 @@ from pydantic import BaseModel, ValidationError
 from config import settings
 from quality import validate_question
 from schemas import CandidateQuestion, ReviewResult
-from text_utils import clean_quiz_prompt, clip_explanation
+from text_utils import clean_quiz_prompt
 
 log = logging.getLogger(__name__)
 cfg = settings()
@@ -34,6 +34,8 @@ GENERATOR_RULES = """
 - ровно один правильный ответ;
 - неправильные варианты должны быть правдоподобными ошибками ученика;
 - объяснение обязательно на русском языке: почему ответ правильный;
+- объяснение должно быть полностью завершённым, состоять из 1–2 коротких предложений,
+  занимать 70–170 символов и заканчиваться точкой; не обрывай слова, цитаты или правило;
 - французский должен быть современным и реально употребимым во Франции;
 - никаких искусственных, двусмысленных или нелепых фраз;
 - не повторяй и не перефразируй близко вопросы из списка запретов;
@@ -53,7 +55,12 @@ REVIEWER_RULES = """
 7. корректность русского объяснения;
 8. отсутствие двусмысленности и нелепых дистракторов.
 
-approved=true разрешено только при полной корректности.
+approved=false ставь только при БЛОКИРУЮЩЕЙ ошибке: неверный ответ,
+второй допустимый ответ, неестественная/ошибочная французская фраза,
+неверное русское объяснение или явное несоответствие уровню/типу.
+Не отклоняй вопрос из-за необязательной стилистической рекомендации или потому,
+что он ближе к одному уровню внутри указанного диапазона.
+Если approved=true, issues должен быть пустым массивом.
 verified_correct_option_id укажи всегда.
 Верни только JSON, строго соответствующий переданной схеме.
 """.strip()
@@ -65,6 +72,7 @@ def _generation_prompt(
     question_type: str,
     topic: str,
     forbidden_prompts: list[str],
+    correction_feedback: str | None = None,
 ) -> str:
     level_rules = (
         "A1–A2: présent, passé composé, futur proche или futur simple; "
@@ -75,7 +83,12 @@ def _generation_prompt(
         "subjonctif; сложные местоимения и естественная живая речь."
     )
     type_rules = {
-        "translation": "Перевод одной живой фразы с русского на французский.",
+        "translation": (
+            "Перевод одной живой фразы с русского на французский. "
+            "Сохрани точный временной смысл исходной русской фразы. "
+            "Если используется «бы», добавь явный контекст настоящего или прошлого, "
+            "чтобы условная конструкция была однозначной."
+        ),
         "conjugation": "Выбор правильной формы частотного французского глагола в контексте.",
         "lexicon": f"Лексический вопрос по теме: {topic}.",
         "grammar_pronouns": f"Грамматический вопрос по теме: {topic}.",
@@ -83,12 +96,20 @@ def _generation_prompt(
     recent_items = [str(prompt)[:180] for prompt in forbidden_prompts[-25:]]
     recent = "\n".join(f"- {prompt}" for prompt in recent_items) or "- нет"
 
+    correction = (
+        "\nИсправь конкретные ошибки предыдущей попытки:\n"
+        + correction_feedback[:1400]
+        if correction_feedback
+        else ""
+    )
+
     return f"""
 Сессия: {session}
 Уровень: {level}
 Тип: {question_type}
 {level_rules}
 {type_rules}
+{correction}
 
 Запрещено повторять или близко перефразировать:
 {recent}
@@ -271,8 +292,9 @@ def generate_question(
     forbidden_prompts: list[str],
 ) -> CandidateQuestion:
     last_error: Exception | None = None
+    correction_feedback: str | None = None
 
-    for attempt in range(1, 5):
+    for attempt in range(1, 6):
         started = time.monotonic()
         try:
             item = _request_json(
@@ -284,6 +306,7 @@ def generate_question(
                     question_type,
                     topic,
                     forbidden_prompts,
+                    correction_feedback,
                 ),
                 schema=CandidateQuestion,
                 schema_name="french_quiz_question",
@@ -293,7 +316,6 @@ def generate_question(
 
             raw_prompt = item.prompt
             item.prompt = clean_quiz_prompt(item.prompt)
-            item.explanation = clip_explanation(item.explanation)
 
             errors = validate_question(
                 item,
@@ -328,6 +350,7 @@ def generate_question(
 
         except Exception as exc:
             last_error = exc
+            correction_feedback = str(exc)
             log.warning(
                 "Question attempt failed | session=%s | type=%s | "
                 "attempt=%s | error=%s",
@@ -337,7 +360,7 @@ def generate_question(
                 str(exc)[:700],
                 exc_info=True,
             )
-            if attempt < 4:
-                time.sleep(2 ** attempt)
+            if attempt < 5:
+                time.sleep(min(2 ** attempt, 12))
 
     raise RuntimeError(f"Не удалось создать проверенный вопрос: {last_error}")

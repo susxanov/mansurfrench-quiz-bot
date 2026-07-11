@@ -29,6 +29,7 @@ HELP = """
 /prepare evening — подготовить сегодняшний вечер
 /force morning — полный тест утреннего цикла в любой день
 /force evening — полный тест вечернего цикла в любой день
+/test morning|evening — короткий алиас команды /force
 /pending — показать ожидающие подтверждения
 /approve ID — опубликовать блок по ID
 /regenerate ID — пересоздать блок по ID
@@ -143,7 +144,7 @@ def handle_message(text: str, chat_id: int, user_id: int):
             daemon=True,
         ).start()
         send_text("Подготовка запущена.", chat_id)
-    elif cmd == "/force" and arg in {"morning", "evening"}:
+    elif cmd in {"/force", "/test"} and arg in {"morning", "evening"}:
         threading.Thread(
             target=_manual_prepare,
             args=(arg, True),

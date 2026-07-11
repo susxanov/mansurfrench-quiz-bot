@@ -21,7 +21,7 @@ from topics import third_question_plan
 log = logging.getLogger(__name__)
 cfg = settings()
 
-_prepare_lock = threading.Lock()
+_prepare_locks = {"morning": threading.Lock(), "evening": threading.Lock()}
 _publish_lock = threading.Lock()
 
 
@@ -89,8 +89,11 @@ def prepare_block(
     if not force and not is_workday(target_date):
         raise RuntimeError("В воскресенье бот не работает.")
     effective_session = base_session(session)
-    if not _prepare_lock.acquire(blocking=False):
-        raise RuntimeError("Подготовка уже выполняется.")
+    prepare_lock = _prepare_locks[effective_session]
+    if not prepare_lock.acquire(blocking=False):
+        raise RuntimeError(
+            f"Подготовка {effective_session} уже выполняется. Дождитесь её завершения."
+        )
 
     block_id: int | None = None
     try:
@@ -240,7 +243,7 @@ def prepare_block(
                     block.error = str(exc)[:2000]
         raise
     finally:
-        _prepare_lock.release()
+        prepare_lock.release()
 
 
 def load_block(target_date: date, session: str):
