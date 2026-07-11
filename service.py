@@ -29,7 +29,16 @@ def is_workday(target_date: date) -> bool:
     return target_date.weekday() < 6
 
 
+def base_session(session: str) -> str:
+    if session == "morning" or session.startswith("manual_morning_"):
+        return "morning"
+    if session == "evening" or session.startswith("manual_evening_"):
+        return "evening"
+    raise ValueError("Unknown session")
+
+
 def _question_plan(target_date: date, session: str):
+    session = base_session(session)
     third_type, third_topic = third_question_plan(target_date, session)
     return [
         ("translation", "Живая повседневная фраза"),
@@ -40,6 +49,7 @@ def _question_plan(target_date: date, session: str):
 
 def _target_positions(target_date: date, session: str) -> list[int]:
     # Three different positions in each block. The omitted position rotates.
+    session = base_session(session)
     seed = target_date.toordinal() * 2 + (0 if session == "morning" else 1)
     start = seed % 4
     return [start, (start + 1) % 4, (start + 2) % 4]
@@ -78,14 +88,13 @@ def prepare_block(
 ) -> DailyBlock:
     if not force and not is_workday(target_date):
         raise RuntimeError("В воскресенье бот не работает.")
-    if session not in {"morning", "evening"}:
-        raise ValueError("Unknown session")
+    effective_session = base_session(session)
     if not _prepare_lock.acquire(blocking=False):
         raise RuntimeError("Подготовка уже выполняется.")
 
     block_id: int | None = None
     try:
-        level = "A1-A2" if session == "morning" else "B1-B2"
+        level = "A1-A2" if effective_session == "morning" else "B1-B2"
 
         with session_scope() as db:
             block = _get_block(db, target_date, session)
@@ -149,7 +158,7 @@ def prepare_block(
             for _ in range(4):
                 candidate = generate_question(
                     level=level,
-                    session=session,
+                    session=effective_session,
                     question_type=question_type,
                     topic=topic,
                     forbidden_prompts=forbidden_prompts,
@@ -268,7 +277,11 @@ def send_for_approval(
     if len(questions) != 3:
         raise RuntimeError("Должно быть ровно 3 вопроса.")
 
-    label = "Утро A1–A2" if session == "morning" else "Вечер B1–B2"
+    effective_session = base_session(session)
+    is_manual = session.startswith("manual_")
+    label = "Утро A1–A2" if effective_session == "morning" else "Вечер B1–B2"
+    if is_manual:
+        label = f"ТЕСТОВЫЙ БЛОК — {label}"
     send_text(
         f"{label}: проверьте 3 вопроса.",
         cfg.admin_telegram_user_id,

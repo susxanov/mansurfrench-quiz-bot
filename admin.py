@@ -72,11 +72,16 @@ def status_text() -> str:
 
 
 def _manual_prepare(session: str, force: bool = False):
-    today = datetime.now(ZoneInfo(cfg.timezone)).date()
+    now = datetime.now(ZoneInfo(cfg.timezone))
+    today = now.date()
+    storage_session = session
+    if force:
+        # A force test must never collide with today's scheduled/published block.
+        storage_session = f"manual_{session}_{now.strftime('%H%M%S')}"
     try:
         result = send_for_approval(
             today,
-            session,
+            storage_session,
             force=force,
         )
         send_text(result, cfg.admin_telegram_user_id)

@@ -22,3 +22,23 @@ def test_sunday_force_reaches_database_logic():
     ):
         with pytest.raises(RuntimeError, match="database reached"):
             service.prepare_block(SUNDAY, "morning", force=True)
+
+
+def test_manual_force_uses_unique_session_key():
+    from unittest.mock import patch
+    import admin
+
+    captured = {}
+
+    def fake_send_for_approval(target_date, session, force=False):
+        captured['session'] = session
+        captured['force'] = force
+        return 'ok'
+
+    with patch.object(admin, 'send_for_approval', side_effect=fake_send_for_approval), \
+         patch.object(admin, 'send_text'):
+        admin._manual_prepare('morning', force=True)
+
+    assert captured['force'] is True
+    assert captured['session'].startswith('manual_morning_')
+    assert captured['session'] != 'morning'
