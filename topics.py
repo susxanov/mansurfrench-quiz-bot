@@ -31,14 +31,14 @@ def working_day_index(target_date) -> int:
     count = 0
     for offset in range(days):
         current = start.fromordinal(start.toordinal() + offset)
-        if current.weekday() < 5:
+        if current.weekday() < 6:
             count += 1
     return count
 
 
 def third_question_plan(target_date, session: str) -> tuple[str, str]:
     index = working_day_index(target_date)
-    # Alternate lexicon and grammar/pronouns across weekdays.
+    # Alternate lexicon and grammar/pronouns across Monday-Saturday.
     if index % 2 == 1:
         topic = LEXICAL_TOPICS[(index - 1 + (0 if session == "morning" else 5)) % len(LEXICAL_TOPICS)]
         return "lexicon", topic

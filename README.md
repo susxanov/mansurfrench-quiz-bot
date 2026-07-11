@@ -1,4 +1,11 @@
-# Mansur French Quiz Bot v4.0 — Production Final
+# Mansur French Quiz Bot v4.0.5 — Production Final
+
+
+## Исправления v4.0.5
+
+- `/force morning` и `/force evening` используют уникальный ключ длиной 19 символов и не превышают `VARCHAR(20)`.
+- Догоняющий запуск после рестарта Railway теперь работает и в субботу.
+- Ротация тем учитывает субботу как рабочий день.
 
 ## Рабочий цикл
 

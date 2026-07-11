@@ -76,7 +76,8 @@ def _manual_prepare(session: str, force: bool = False):
     today = now.date()
     storage_session = session
     if force:
-        # A force test must never collide with today's scheduled/published block.
+        # Keep the key unique while respecting DailyBlock.session VARCHAR(20).
+        # Example: test_m_174012123456 (19 characters).
         storage_session = f"test_{session[0]}_{now.strftime('%H%M%S%f')}"
     try:
         result = send_for_approval(

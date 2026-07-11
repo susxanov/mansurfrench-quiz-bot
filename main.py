@@ -78,7 +78,7 @@ def startup_catchup():
         return
 
     now = datetime.now(ZoneInfo(cfg.timezone))
-    if now.weekday() >= 5:
+    if now.weekday() >= 6:
         return
 
     morning_time = now.replace(
