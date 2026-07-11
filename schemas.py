@@ -1,0 +1,39 @@
+from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class CandidateQuestion(StrictModel):
+    topic: str = Field(min_length=2, max_length=120)
+    skill: str = Field(min_length=2, max_length=100)
+    level: Literal["A1-A2", "B1-B2"]
+    question_type: Literal["translation", "conjugation", "lexicon", "grammar_pronouns"]
+    prompt: str = Field(min_length=5, max_length=300)
+    options: list[str] = Field(min_length=4, max_length=4)
+    correct_option_id: int = Field(ge=0, le=3)
+    explanation: str = Field(min_length=20, max_length=190)
+
+    @field_validator("topic", "skill", "prompt", "explanation")
+    @classmethod
+    def strip_text(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("options")
+    @classmethod
+    def validate_options(cls, value: list[str]) -> list[str]:
+        cleaned = [item.strip() for item in value]
+        if len(cleaned) != 4 or len(set(cleaned)) != 4:
+            raise ValueError("Exactly four distinct options are required")
+        if any(not option or len(option) > 100 for option in cleaned):
+            raise ValueError("Invalid option length")
+        return cleaned
+
+
+class ReviewResult(StrictModel):
+    approved: bool
+    corrected_correct_option_id: int | None = Field(default=None, ge=0, le=3)
+    issues: list[str] = Field(default_factory=list, max_length=10)
+    explanation_check: str = Field(min_length=5, max_length=300)
