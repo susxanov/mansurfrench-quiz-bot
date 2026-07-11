@@ -1,7 +1,11 @@
+import json
 import logging
+import re
 import time
+from typing import TypeVar
 
 from openai import OpenAI
+from pydantic import BaseModel, ValidationError
 
 from config import settings
 from quality import validate_question
@@ -17,11 +21,14 @@ client = OpenAI(
     max_retries=2,
 )
 
+T = TypeVar("T", bound=BaseModel)
+
 GENERATOR_RULES = """
 Ты — профессиональный методист FLE для русскоязычных взрослых.
 Создай ОДИН современный и естественный вопрос.
 
 ЖЁСТКИЕ ПРАВИЛА:
+- верни ТОЛЬКО один JSON-объект без Markdown и без ```;
 - выводи только сам вопрос, без Exercice, Exercise, Question, номера, даты,
   служебного кода, заголовка, уровня и внутренних комментариев;
 - ровно 4 разных и сопоставимых варианта;
@@ -32,11 +39,23 @@ GENERATOR_RULES = """
 - никаких искусственных, двусмысленных или нелепых фраз;
 - не повторяй и не перефразируй близко вопросы из списка запретов;
 - вопрос должен строго соответствовать заявленному уровню и типу.
+
+JSON должен содержать ровно эти поля:
+{
+  "topic": "строка",
+  "skill": "строка",
+  "level": "A1-A2 или B1-B2",
+  "question_type": "translation, conjugation, lexicon или grammar_pronouns",
+  "prompt": "строка",
+  "options": ["вариант 1", "вариант 2", "вариант 3", "вариант 4"],
+  "correct_option_id": 0,
+  "explanation": "краткое объяснение по-русски"
+}
+correct_option_id — индекс от 0 до 3.
 """.strip()
 
 REVIEWER_RULES = """
-Ты — независимый старший редактор FLE.
-Проверь вопрос без доверия к автору.
+Ты — независимый старший редактор FLE. Проверь вопрос без доверия к автору.
 
 Проверь:
 1. французскую грамматику и орфографию;
@@ -48,6 +67,13 @@ REVIEWER_RULES = """
 7. корректность русского объяснения;
 8. отсутствие двусмысленности и нелепых дистракторов.
 
+Верни ТОЛЬКО один JSON-объект без Markdown и без ```:
+{
+  "approved": true,
+  "verified_correct_option_id": 0,
+  "issues": [],
+  "explanation_check": "краткий вывод"
+}
 approved=true разрешено только при полной корректности.
 verified_correct_option_id укажи всегда.
 """.strip()
@@ -88,17 +114,74 @@ def _generation_prompt(
 """.strip()
 
 
+def _extract_output_text(response) -> str:
+    """Extract text from Responses API without relying on output_parsed."""
+    direct = getattr(response, "output_text", None)
+    if isinstance(direct, str) and direct.strip():
+        return direct.strip()
+
+    chunks: list[str] = []
+    for output_item in getattr(response, "output", None) or []:
+        for content_item in getattr(output_item, "content", None) or []:
+            text = getattr(content_item, "text", None)
+            if isinstance(text, str) and text.strip():
+                chunks.append(text)
+            elif text is not None:
+                value = getattr(text, "value", None)
+                if isinstance(value, str) and value.strip():
+                    chunks.append(value)
+
+    if chunks:
+        return "\n".join(chunks).strip()
+    raise RuntimeError("OpenAI returned no text output")
+
+
+def _clean_json_text(raw: str) -> str:
+    text = raw.strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s*```$", "", text)
+
+    # If the model added a short prefix/suffix, isolate the outer JSON object.
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end > start:
+        text = text[start:end + 1]
+    return text.strip()
+
+
+def _request_json(*, model: str, instructions: str, user_input: str, schema: type[T], max_output_tokens: int) -> T:
+    response = client.responses.create(
+        model=model,
+        instructions=instructions,
+        input=user_input,
+        max_output_tokens=max_output_tokens,
+    )
+    raw = _extract_output_text(response)
+    cleaned = _clean_json_text(raw)
+
+    try:
+        payload = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"OpenAI returned invalid JSON: {exc.msg} | raw={raw[:500]}"
+        ) from exc
+
+    try:
+        return schema.model_validate(payload)
+    except ValidationError as exc:
+        raise RuntimeError(
+            f"OpenAI JSON does not match schema: {exc.errors()[:3]} | raw={raw[:500]}"
+        ) from exc
+
+
 def _review(question: CandidateQuestion) -> ReviewResult:
-    response = client.responses.parse(
+    return _request_json(
         model=cfg.openai_reviewer_model,
         instructions=REVIEWER_RULES,
-        input=question.model_dump_json(),
-        text_format=ReviewResult,
+        user_input=question.model_dump_json(ensure_ascii=False),
+        schema=ReviewResult,
         max_output_tokens=900,
     )
-    if response.output_parsed is None:
-        raise RuntimeError("Reviewer returned no parsed result")
-    return response.output_parsed
 
 
 def generate_question(
@@ -113,22 +196,19 @@ def generate_question(
     for attempt in range(1, 5):
         started = time.monotonic()
         try:
-            response = client.responses.parse(
+            item = _request_json(
                 model=cfg.openai_model,
                 instructions=GENERATOR_RULES,
-                input=_generation_prompt(
+                user_input=_generation_prompt(
                     level,
                     session,
                     question_type,
                     topic,
                     forbidden_prompts,
                 ),
-                text_format=CandidateQuestion,
+                schema=CandidateQuestion,
                 max_output_tokens=1600,
             )
-            item = response.output_parsed
-            if item is None:
-                raise RuntimeError("Generator returned no parsed question")
 
             raw_prompt = item.prompt
             item.prompt = clean_quiz_prompt(item.prompt)
