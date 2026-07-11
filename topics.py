@@ -31,7 +31,7 @@ def working_day_index(target_date) -> int:
     count = 0
     for offset in range(days):
         current = start.fromordinal(start.toordinal() + offset)
-        if current.weekday() < 6:
+        if current.weekday() < 5:
             count += 1
     return count
 

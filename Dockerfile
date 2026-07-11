@@ -10,6 +10,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN pytest -q && python -m compileall -q .
+RUN pytest -q \
+    && python -m compileall -q . \
+    && test -f /bot/main.py \
+    && test -f /bot/requirements.txt
 
 CMD ["python", "main.py"]

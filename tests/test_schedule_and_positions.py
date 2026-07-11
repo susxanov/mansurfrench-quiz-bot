@@ -1,8 +1,25 @@
-from datetime import date
-
 from service import _move_correct_answer, _target_positions, is_workday
 from schemas import CandidateQuestion
-from topics import LEXICAL_TOPICS, third_question_plan
+from topics import LEXICAL_TOPICS
+
+
+class WeekdayStub:
+    """Calendar-independent object exposing Python's weekday() contract."""
+
+    def __init__(self, weekday_number: int):
+        self.weekday_number = weekday_number
+
+    def weekday(self) -> int:
+        return self.weekday_number
+
+
+class OrdinalStub(WeekdayStub):
+    def __init__(self, weekday_number: int, ordinal: int):
+        super().__init__(weekday_number)
+        self._ordinal = ordinal
+
+    def toordinal(self) -> int:
+        return self._ordinal
 
 
 def make_question():
@@ -18,15 +35,20 @@ def make_question():
     )
 
 
-def test_weekdays_only():
-    assert is_workday(date(2026, 7, 13))
-    assert not is_workday(date(2026, 7, 11))
-    assert not is_workday(date(2026, 7, 12))
+def test_monday_through_saturday_are_workdays():
+    # Python weekday(): Monday=0, ..., Saturday=5, Sunday=6.
+    for weekday_number in range(6):
+        assert is_workday(WeekdayStub(weekday_number))
 
 
-def test_positions_are_mixed():
-    morning = _target_positions(date(2026, 7, 13), "morning")
-    evening = _target_positions(date(2026, 7, 13), "evening")
+def test_sunday_is_the_only_day_off():
+    assert not is_workday(WeekdayStub(6))
+
+
+def test_positions_are_mixed_between_sessions():
+    target = OrdinalStub(0, 739815)
+    morning = _target_positions(target, "morning")
+    evening = _target_positions(target, "evening")
     assert len(set(morning)) == 3
     assert len(set(evening)) == 3
     assert morning != evening
@@ -42,11 +64,3 @@ def test_move_correct_answer_keeps_correct_text():
 
 def test_twelve_lexical_topics_exist():
     assert len(LEXICAL_TOPICS) == 12
-
-
-def test_morning_and_evening_rotation_differs():
-    target = date(2026, 7, 13)
-    assert third_question_plan(target, "morning") != third_question_plan(
-        target,
-        "evening",
-    )

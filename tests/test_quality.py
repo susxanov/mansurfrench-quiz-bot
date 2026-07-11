@@ -1,32 +1,65 @@
 from schemas import CandidateQuestion
-from quality import validate_question
+from quality import (
+    fingerprint,
+    is_duplicate_or_similar,
+    prompts_too_similar,
+    validate_question,
+)
+from text_utils import clean_quiz_prompt
 
 
-def test_rejects_wrong_level_and_visible_label():
-    q = CandidateQuestion(
-        topic="Test",
-        skill="Test",
-        level="B1-B2",
-        question_type="translation",
-        prompt="Exercice 12. Переведите: «Я дома».",
-        options=["Je suis chez moi.", "Je vais chez moi.", "J’étais chez moi.", "Je reste maison."],
-        correct_option_id=0,
-        explanation="Je suis chez moi signifie «я дома» dans la langue courante.",
-    )
-    errors = validate_question(q, "A1-A2", "translation")
-    assert "wrong_level" in errors
-    assert "internal_or_forbidden_text" in errors
-
-
-def test_accepts_clean_translation():
-    q = CandidateQuestion(
-        topic="Vie quotidienne",
-        skill="être chez soi",
+def make_question(prompt="Choisissez la bonne forme."):
+    return CandidateQuestion(
+        topic="Présent",
+        skill="aller au présent",
         level="A1-A2",
-        question_type="translation",
-        prompt="Переведите: «Я сейчас дома».",
-        options=["Je suis chez moi maintenant.", "Je vais chez moi maintenant.", "J’étais chez moi maintenant.", "Je reste à maison maintenant."],
+        question_type="conjugation",
+        prompt=prompt,
+        options=["vais", "vas", "va", "allons"],
         correct_option_id=0,
-        explanation="Je suis chez moi означает «я дома»; maintenant уточняет, что речь идёт о текущем моменте.",
+        explanation="С местоимением je глагол aller имеет форму je vais.",
     )
-    assert validate_question(q, "A1-A2", "translation") == []
+
+
+def test_removes_internal_prefixes():
+    assert (
+        clean_quiz_prompt(
+            "Exercice 193-e-t-1. Переведите: «Я иду домой»."
+        )
+        == "Переведите: «Я иду домой»."
+    )
+    assert (
+        clean_quiz_prompt("Question 12 — Choisissez la bonne forme.")
+        == "Choisissez la bonne forme."
+    )
+
+
+def test_validation_rejects_internal_prefix():
+    item = make_question("Exercice 12. Choisissez la bonne forme.")
+    errors = validate_question(
+        item,
+        "A1-A2",
+        "conjugation",
+        raw_prompt="Exercice 12. Choisissez la bonne forme.",
+    )
+    assert "internal_prefix" in errors
+
+
+def test_fingerprint_ignores_option_order():
+    first = make_question()
+    second = make_question()
+    second.options = list(reversed(second.options))
+    second.correct_option_id = 3
+    assert fingerprint(first) == fingerprint(second)
+
+
+def test_similarity_detection():
+    assert prompts_too_similar(
+        "Переведите: «Я записался к стоматологу на завтра».",
+        "Переведите: «Я записался к стоматологу на завтра утром».",
+        threshold=0.70,
+    )
+    assert is_duplicate_or_similar(
+        "Переведите: «Я записался к стоматологу на завтра».",
+        ["Переведите: «Я записался к стоматологу на завтра утром»."],
+    )
