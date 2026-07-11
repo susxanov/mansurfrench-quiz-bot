@@ -80,7 +80,8 @@ def _generation_prompt(
         "lexicon": f"Лексический вопрос по теме: {topic}.",
         "grammar_pronouns": f"Грамматический вопрос по теме: {topic}.",
     }[question_type]
-    recent = "\n".join(f"- {prompt}" for prompt in forbidden_prompts[-60:]) or "- нет"
+    recent_items = [str(prompt)[:180] for prompt in forbidden_prompts[-25:]]
+    recent = "\n".join(f"- {prompt}" for prompt in recent_items) or "- нет"
 
     return f"""
 Сессия: {session}
@@ -139,51 +140,115 @@ def _request_json(
     schema: type[T],
     schema_name: str,
     max_completion_tokens: int,
+    reasoning_effort: str,
 ) -> T:
-    completion = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": instructions},
-            {"role": "user", "content": user_input},
-        ],
-        response_format=_json_schema_for(schema, schema_name),
-        reasoning_effort="low",
-        max_completion_tokens=max_completion_tokens,
-    )
+    # GPT-5 models may spend part of max_completion_tokens on internal
+    # reasoning. A tiny JSON answer can therefore finish with reason=length.
+    # Retry only that technical truncation with a larger budget.
+    # The maximum is a ceiling, not prepaid usage: billing is based on tokens
+    # actually consumed. Start with enough room for GPT-5 mini reasoning, then
+    # double only when the API explicitly reports finish_reason=length.
+    budgets = [
+        min(max_completion_tokens, 128000),
+        min(max_completion_tokens * 2, 128000),
+        min(max_completion_tokens * 4, 128000),
+    ]
+    effort_ladder = {
+        "high": ["high", "medium", "low"],
+        "medium": ["medium", "low", "minimal"],
+        "low": ["low", "minimal", "minimal"],
+        "minimal": ["minimal", "minimal", "minimal"],
+    }[reasoning_effort]
+    last_error: RuntimeError | None = None
 
-    if not completion.choices:
-        raise RuntimeError("OpenAI returned no choices")
-
-    choice = completion.choices[0]
-    message = choice.message
-
-    refusal = getattr(message, "refusal", None)
-    if refusal:
-        raise RuntimeError(f"OpenAI refused the request: {refusal}")
-
-    if choice.finish_reason == "length":
-        raise RuntimeError("OpenAI response was truncated by the token limit")
-
-    raw = message.content
-    if not isinstance(raw, str) or not raw.strip():
-        raise RuntimeError(
-            "OpenAI returned an empty structured response "
-            f"(finish_reason={choice.finish_reason})"
+    for attempt, (budget, effort) in enumerate(
+        zip(budgets, effort_ladder), start=1
+    ):
+        completion = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": instructions},
+                {"role": "user", "content": user_input},
+            ],
+            response_format=_json_schema_for(schema, schema_name),
+            reasoning_effort=effort,
+            max_completion_tokens=budget,
         )
 
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            f"OpenAI returned invalid JSON: {exc.msg} | raw={raw[:500]}"
-        ) from exc
+        if not completion.choices:
+            last_error = RuntimeError("OpenAI returned no choices")
+            continue
 
-    try:
-        return schema.model_validate(payload)
-    except ValidationError as exc:
-        raise RuntimeError(
-            f"OpenAI JSON does not match schema: {exc.errors()[:3]} | raw={raw[:500]}"
-        ) from exc
+        choice = completion.choices[0]
+        message = choice.message
+
+        usage = getattr(completion, "usage", None)
+        if usage is not None:
+            details = getattr(usage, "completion_tokens_details", None)
+            reasoning_tokens = (
+                getattr(details, "reasoning_tokens", None) if details else None
+            )
+            log.info(
+                "OpenAI usage | schema=%s | model=%s | attempt=%s | "
+                "effort=%s | budget=%s | prompt=%s | completion=%s | "
+                "reasoning=%s | finish=%s",
+                schema_name,
+                model,
+                attempt,
+                effort,
+                budget,
+                getattr(usage, "prompt_tokens", None),
+                getattr(usage, "completion_tokens", None),
+                reasoning_tokens,
+                choice.finish_reason,
+            )
+
+        refusal = getattr(message, "refusal", None)
+        if refusal:
+            raise RuntimeError(f"OpenAI refused the request: {refusal}")
+
+        raw = message.content
+        if choice.finish_reason == "length":
+            last_error = RuntimeError(
+                "OpenAI response was truncated by the token limit "
+                f"(attempt={attempt}, budget={budget}, effort={effort})"
+            )
+            log.warning(
+                "Structured response truncated; retrying | schema=%s | "
+                "attempt=%s | budget=%s | effort=%s",
+                schema_name,
+                attempt,
+                budget,
+                effort,
+            )
+            continue
+
+        if not isinstance(raw, str) or not raw.strip():
+            last_error = RuntimeError(
+                "OpenAI returned an empty structured response "
+                f"(finish_reason={choice.finish_reason}, attempt={attempt}, "
+                f"budget={budget})"
+            )
+            if attempt < len(budgets):
+                continue
+            break
+
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                f"OpenAI returned invalid JSON: {exc.msg} | raw={raw[:500]}"
+            ) from exc
+
+        try:
+            return schema.model_validate(payload)
+        except ValidationError as exc:
+            raise RuntimeError(
+                f"OpenAI JSON does not match schema: {exc.errors()[:3]} | "
+                f"raw={raw[:500]}"
+            ) from exc
+
+    raise last_error or RuntimeError("OpenAI failed to return structured JSON")
 
 
 def _review(question: CandidateQuestion) -> ReviewResult:
@@ -193,7 +258,8 @@ def _review(question: CandidateQuestion) -> ReviewResult:
         user_input=question.model_dump_json(ensure_ascii=False),
         schema=ReviewResult,
         schema_name="french_quiz_review",
-        max_completion_tokens=1800,
+        max_completion_tokens=cfg.reviewer_max_completion_tokens,
+        reasoning_effort=cfg.reviewer_reasoning_effort,
     )
 
 
@@ -221,7 +287,8 @@ def generate_question(
                 ),
                 schema=CandidateQuestion,
                 schema_name="french_quiz_question",
-                max_completion_tokens=2600,
+                max_completion_tokens=cfg.generator_max_completion_tokens,
+                reasoning_effort=cfg.generator_reasoning_effort,
             )
 
             raw_prompt = item.prompt

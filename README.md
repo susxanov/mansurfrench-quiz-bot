@@ -59,3 +59,29 @@
 ## Исправление v5.0
 
 OpenAI-ответы разбираются вручную из `response.output_text` как JSON и проверяются Pydantic. Бот больше не зависит от нестабильного поля `output_parsed`.
+
+## Исправление v5.0.3
+
+- GPT-5 mini запускается с `reasoning_effort=minimal` для коротких JSON-квизов.
+- При `finish_reason=length` запрос автоматически повторяется с увеличенным лимитом токенов.
+- История запретных вопросов сокращена до последних 25 формулировок, чтобы не раздувать запрос.
+- Генератор и рецензент используют увеличенные стартовые лимиты.
+
+
+## Настройки качества и лимита ответа
+
+Рекомендуемые Railway Variables:
+
+```env
+OPENAI_MODEL=gpt-5-mini-2025-08-07
+OPENAI_REVIEWER_MODEL=gpt-5-mini-2025-08-07
+GENERATOR_REASONING_EFFORT=low
+REVIEWER_REASONING_EFFORT=medium
+GENERATOR_MAX_COMPLETION_TOKENS=12000
+REVIEWER_MAX_COMPLETION_TOKENS=12000
+OPENAI_TIMEOUT_SECONDS=180
+```
+
+Лимит — это верхняя граница одного ответа. Неиспользованные токены не оплачиваются.
+При `finish_reason=length` бот автоматически удваивает бюджет и одновременно
+снижает reasoning effort на одну ступень, не отключая педагогическую проверку.

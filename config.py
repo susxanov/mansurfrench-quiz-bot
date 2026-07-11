@@ -23,11 +23,23 @@ class Settings(BaseSettings):
     evening_minute: int = Field(default=30, alias="EVENING_MINUTE")
 
     questions_per_block: int = 3
-    content_version: str = "4.0.6"
+    content_version: str = "5.0.4"
     post_delay_seconds: float = Field(default=2.0, alias="POST_DELAY_SECONDS")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     port: int = Field(default=8080, alias="PORT")
-    openai_timeout_seconds: float = Field(default=120.0, alias="OPENAI_TIMEOUT_SECONDS")
+    openai_timeout_seconds: float = Field(default=180.0, alias="OPENAI_TIMEOUT_SECONDS")
+    generator_max_completion_tokens: int = Field(
+        default=12000, alias="GENERATOR_MAX_COMPLETION_TOKENS"
+    )
+    reviewer_max_completion_tokens: int = Field(
+        default=12000, alias="REVIEWER_MAX_COMPLETION_TOKENS"
+    )
+    generator_reasoning_effort: str = Field(
+        default="low", alias="GENERATOR_REASONING_EFFORT"
+    )
+    reviewer_reasoning_effort: str = Field(
+        default="medium", alias="REVIEWER_REASONING_EFFORT"
+    )
 
     @field_validator("database_url")
     @classmethod
@@ -37,6 +49,21 @@ class Settings(BaseSettings):
         if value.startswith("postgresql://") and "+psycopg" not in value:
             return value.replace("postgresql://", "postgresql+psycopg://", 1)
         return value
+
+    @field_validator("generator_max_completion_tokens", "reviewer_max_completion_tokens")
+    @classmethod
+    def valid_token_budget(cls, value: int) -> int:
+        if not 1000 <= value <= 128000:
+            raise ValueError("Token budget must be between 1000 and 128000")
+        return value
+
+    @field_validator("generator_reasoning_effort", "reviewer_reasoning_effort")
+    @classmethod
+    def valid_reasoning_effort(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"minimal", "low", "medium", "high"}:
+            raise ValueError("Reasoning effort must be minimal, low, medium, or high")
+        return normalized
 
     @field_validator("morning_hour", "evening_hour")
     @classmethod

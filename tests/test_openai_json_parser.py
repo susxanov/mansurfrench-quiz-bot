@@ -47,6 +47,7 @@ def test_chat_completion_json_validates(monkeypatch):
         schema=CandidateQuestion,
         schema_name="candidate",
         max_completion_tokens=500,
+        reasoning_effort="low",
     )
     assert result.correct_option_id == 0
     assert result.level == "A1-A2"
@@ -66,6 +67,7 @@ def test_empty_content_has_clear_error(monkeypatch):
             schema=CandidateQuestion,
             schema_name="candidate",
             max_completion_tokens=500,
+            reasoning_effort="low",
         )
 
 
@@ -83,10 +85,41 @@ def test_invalid_json_has_clear_error(monkeypatch):
             schema=CandidateQuestion,
             schema_name="candidate",
             max_completion_tokens=500,
+            reasoning_effort="low",
         )
 
 
-def test_length_finish_reason_is_rejected(monkeypatch):
+def test_length_finish_reason_retries_with_larger_budget(monkeypatch):
+    calls = []
+
+    def create(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            return fake_completion("", finish_reason="length")
+        return fake_completion(valid_candidate_json())
+
+    monkeypatch.setattr(
+        openai_service.client.chat.completions,
+        "create",
+        create,
+    )
+    result = openai_service._request_json(
+        model="gpt-5-mini",
+        instructions="x",
+        user_input="y",
+        schema=CandidateQuestion,
+        schema_name="candidate",
+        max_completion_tokens=500,
+        reasoning_effort="low",
+    )
+    assert result.correct_option_id == 0
+    assert len(calls) == 2
+    assert calls[0]["reasoning_effort"] == "low"
+    assert calls[1]["reasoning_effort"] == "minimal"
+    assert calls[1]["max_completion_tokens"] > calls[0]["max_completion_tokens"]
+
+
+def test_repeated_length_finish_reason_has_clear_error(monkeypatch):
     monkeypatch.setattr(
         openai_service.client.chat.completions,
         "create",
@@ -100,4 +133,5 @@ def test_length_finish_reason_is_rejected(monkeypatch):
             schema=CandidateQuestion,
             schema_name="candidate",
             max_completion_tokens=500,
+            reasoning_effort="low",
         )
