@@ -1,14 +1,12 @@
 {
-  ".env.example": "8c40b6659982573e037d8930a064742b6f6cc85fbeefe604c5b41536fff6b984",
-  ".gitignore": "9e79ecf56edc861c9f5976b49d6457be92d9bd06928e6971acc45384790b1bd9",
   "Dockerfile": "025ecc13d50db6370107efb2a9afb189e04ced0cadc3458ec55556126d100a0d",
   "README.md": "d18c9012c00c24dd53d1ed059fae4dda504ced1c5c76b59b111021a889d75895",
-  "VERSION": "3d6fc11be101d00a39d2e30a49ca2555b20421015abc73ff66971cfa0ffb76dc",
+  "VERSION": "e7c733813da5474fac9003c51bb1c74ea3083edc83fe12867a2200ed8cac4c74",
   "admin.py": "9ee70da41755bdb9609298dfa8558c37f5de760f08766398f2acd961917b8830",
   "config.py": "cb7997a86aee01716e3ec01306134be343497a226c18b577f3e678d0d1ee406d",
   "db.py": "4e159a12b098e30f000eb31e09a3bd06ad6831ceff662080be9e40f8ef95a22b",
   "health.py": "c5e3a2f26f1ac2e4526bad0089a9c87c6791f1bdd618e0ab5501baa6c3235698",
-  "main.py": "2b3468f12d264c19e103009a2e9399ada8204e481a5ff6e043926873964c8979",
+  "main.py": "2215a9d5896ca1b153924bd6c45088b329822cdda607cf396f2d117e669cd89e",
   "models.py": "5b7ff217b211269025c11883ab428c6f4bafb0bc1feb0182c8691d83d3605867",
   "openai_service.py": "08f0ae715bff9c7c6924825964186a504cb19fdc3a8cca2f75a1690cd33e0ecf",
   "pytest.ini": "b160d82f7811555051f8966d8e02750a985227c1d022208c784e606946f2eada",
@@ -19,12 +17,13 @@
   "service.py": "b440919d993ba8aba6ca384c16fe05c6c4bfe919608f194a084a34a06d080f5b",
   "telegram_api.py": "99512926b8fc5f3a73102fb54893962c08506348ec2c67b9c174469dd66fe806",
   "tests/conftest.py": "54bbb3af9417d84e5c2cde2fe321e0f0e88ab6fae23f0be2c491ee4fbca44a27",
+  "tests/test_core.py": "0381b72369bdcea28fd937c1cdca18fc2b285f60ecdd93d748c410c1b675629d",
   "tests/test_force_mode.py": "3ec7c8b9e02ccf029f4ea6aafa25960b72a8a4019b03a701235d4f62ce96b75b",
   "tests/test_generation_contract.py": "fd46378409a96b2f8bc41eda082e3d4b6505f1f8a5f5c7d5dac1a9ff0b0fae75",
   "tests/test_publication.py": "f55ed6cbd9174004af16759bfabec2253dd59d53a5f916e2153b3fe8d99ca897",
   "tests/test_quality.py": "afcca7a173f7209c3083a8e925e586f8257dc505afbf48550da3f3488b0d21e7",
   "tests/test_schedule_and_positions.py": "dec916659f3b5e8400ffbb4314962510b331a55b8dc8fd54063f0ee72a425e12",
-  "tests/test_scheduler_contract.py": "71b98c2e783b2e7e821497e68267bb850af50030edbae306ae9fa53a90aa61f9",
+  "tests/test_scheduler_contract.py": "e611f1767d61096750aec328ee2cc5077338e120bd9f483e8596ac25a59aa075",
   "text_utils.py": "c7b3416d49bb584d48e11419e1cadf20bde76491ba854598f8b16f4fc75f5283",
-  "topics.py": "63ddc834febb60c671a5acbe65a004a21d6c022546ee286bd6bb714fbdbec2e1"
+  "topics.py": "dfa17344764c8992b095b94bca170cf914420c3faebdac2a5771cbb08c0fbaaf"
 }
