@@ -1,6 +1,5 @@
 from typing import Literal
-
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class StrictModel(BaseModel):
@@ -35,6 +34,6 @@ class CandidateQuestion(StrictModel):
 
 class ReviewResult(StrictModel):
     approved: bool
-    verified_correct_option_id: int = Field(ge=0, le=3)
+    corrected_correct_option_id: int | None = Field(default=None, ge=0, le=3)
     issues: list[str] = Field(default_factory=list, max_length=10)
     explanation_check: str = Field(min_length=5, max_length=300)

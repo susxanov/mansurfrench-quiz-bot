@@ -23,7 +23,6 @@ class Settings(BaseSettings):
     evening_minute: int = Field(default=30, alias="EVENING_MINUTE")
 
     questions_per_block: int = 3
-    content_version: str = "4.0"
     post_delay_seconds: float = Field(default=2.0, alias="POST_DELAY_SECONDS")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     port: int = Field(default=8080, alias="PORT")

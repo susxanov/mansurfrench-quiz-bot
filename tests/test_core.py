@@ -21,6 +21,7 @@ def make_question():
 
 def test_weekdays_only():
     assert is_workday(date(2026, 7, 13))
+    assert is_workday(date(2026, 7, 11))
     assert not is_workday(date(2026, 7, 12))
 
 
