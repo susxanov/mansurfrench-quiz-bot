@@ -1,4 +1,5 @@
 import os
+
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token")
 os.environ.setdefault("TELEGRAM_CHANNEL", "@test")
 os.environ.setdefault("ADMIN_TELEGRAM_USER_ID", "1")

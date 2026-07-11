@@ -1,33 +1,43 @@
-# Mansur French Quiz Bot v3.0
+# Mansur French Quiz Bot v4.0 — Production Final
 
-## Production behavior
+## Рабочий цикл
 
-- Monday to Friday only.
-- Morning review at 09:00 Europe/Paris: 3 questions, A1–A2.
-- Evening review at 19:30 Europe/Paris: 3 questions, B1–B2.
-- The bot sends the questions privately to the administrator first.
-- Publication to `@mansurfrench` happens only after pressing **Подтвердить**.
-- Each block contains:
-  1. Russian → French translation;
-  2. verb conjugation in context;
-  3. rotating lexicon or grammar/pronouns.
-- 12 lexical themes rotate.
-- Questions are independently reviewed before storage.
-- Exact duplicates are blocked across the whole database.
-- Correct answers are programmatically rotated across positions.
-- No `Exercice`, numbering, or generator labels are allowed in poll questions.
-- Telegram quiz explanations are included.
+- Понедельник–пятница.
+- Суббота и воскресенье: автоматическая работа отключена.
+- 09:00 Europe/Paris: 3 вопроса A1–A2 сначала администратору.
+- 19:30 Europe/Paris: 3 вопроса B1–B2 сначала администратору.
+- Публикация в `@mansurfrench` происходит только после подтверждения.
 
-## Railway variables
+## Состав каждого блока
 
-Use the variables from `.env.example`.
-Keep the existing PostgreSQL service and set its `DATABASE_URL`.
+1. перевод с русского на французский;
+2. спряжение частотного глагола в контексте;
+3. лексика либо грамматика/местоимения.
 
-## Admin commands
+## Надёжность
+
+- Вопрос проходит локальную проверку и независимую редакторскую проверку.
+- Если редактор не подтверждает индекс правильного ответа, вопрос отклоняется.
+- Точные и близкие повторы блокируются по всей базе.
+- Утренние и вечерние вопросы проверяются по одним правилам.
+- Правильные ответы программно распределяются по разным позициям.
+- `Exercice`, номера, даты и внутренние подписи запрещены.
+- После каждого ответа Telegram сохраняется ID сообщения.
+- При частичном сбое повторная публикация продолжает с первого неотправленного вопроса.
+- Повторное нажатие подтверждения не дублирует опубликованный блок.
+- После перезапуска сервис догоняет пропущенную подготовку рабочего дня.
+
+## Команды администратора
 
 - `/status`
 - `/prepare morning`
 - `/prepare evening`
+- `/force morning`
+- `/force evening`
 - `/pending`
+- `/approve ID`
+- `/regenerate ID`
 - `/pause`
 - `/resume`
+
+`/force` проверяет полный цикл в любой день и не изменяет расписание.
