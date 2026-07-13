@@ -143,13 +143,11 @@ def validate_question(
         if not all(re.search(r"[A-Za-zÀ-ÿ]", option) for option in item.options):
             errors.append("translation_options_must_be_french")
 
-    if expected_type == "conjugation":
-        prompt = item.prompt.lower()
-        if not any(
-            marker in prompt
-            for marker in ("choisissez", "complétez", "quelle forme", "спряж", "выберите")
-        ):
-            errors.append("conjugation_prompt_unclear")
+    # Conjugation clarity is defined by the structural contract, not by
+    # cosmetic instruction words such as «Complétez» or «Выберите». A natural
+    # Telegram quiz may consist only of a contextual French sentence with one
+    # blank. validate_surface_contract() already requires exactly one blank and
+    # compact options that can be inserted literally.
 
     errors.extend(validate_surface_contract(item))
     return errors
