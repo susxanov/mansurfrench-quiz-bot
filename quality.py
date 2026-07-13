@@ -16,6 +16,59 @@ FORBIDDEN_MARKERS = (
 _WORD_RE = re.compile(r"[a-zà-ÿа-яё0-9']+", re.IGNORECASE)
 
 
+_BLANK_RE = re.compile(r"_{3,}|\[?\]|…{2,}|\.\.\.")
+_DOUBLE_CLITIC_PATTERNS = (
+    re.compile(r"\b(?:je|tu|il|elle|on|nous|vous|ils|elles)\s+te\s+t[’']", re.I),
+    re.compile(r"\b(?:je|tu|il|elle|on|nous|vous|ils|elles)\s+me\s+m[’']", re.I),
+    re.compile(r"\b(?:je|tu|il|elle|on|nous|vous|ils|elles)\s+se\s+s[’']", re.I),
+    re.compile(r"\blui\s+lui\b", re.I),
+    re.compile(r"\bleur\s+leur\b", re.I),
+    re.compile(r"\ben\s+en\b", re.I),
+    re.compile(r"\by\s+y\b", re.I),
+    re.compile(r"\b(?:le|la|les)\s+(?:le|la|les)\b", re.I),
+    re.compile(r"[’']\s*[’']"),
+)
+
+def has_blank(value: str) -> bool:
+    return bool(_BLANK_RE.search(value or ""))
+
+def assemble_blank_variants(prompt: str, options: list[str]) -> list[str]:
+    match = _BLANK_RE.search(prompt or "")
+    if not match:
+        return []
+    before, after = prompt[:match.start()], prompt[match.end():]
+    return [f"{before}{option}{after}" for option in options]
+
+def validate_surface_contract(item: CandidateQuestion) -> list[str]:
+    errors: list[str] = []
+    prompt_has_blank = has_blank(item.prompt)
+
+    if item.question_type == "translation":
+        if prompt_has_blank:
+            errors.append("translation_must_use_full_sentences")
+        # Translation options must be complete French clauses, not isolated tokens.
+        if any(len(option.split()) < 3 for option in item.options):
+            errors.append("translation_options_must_be_complete_sentences")
+
+    if item.question_type == "conjugation":
+        if not prompt_has_blank:
+            errors.append("conjugation_requires_one_blank")
+        elif len(_BLANK_RE.findall(item.prompt)) != 1:
+            errors.append("conjugation_requires_exactly_one_blank")
+        # Options for a conjugation blank must be compact forms, not full clauses.
+        if any(len(option.split()) > 3 for option in item.options):
+            errors.append("conjugation_options_too_long")
+
+    if prompt_has_blank:
+        for assembled in assemble_blank_variants(item.prompt, item.options):
+            normalized = re.sub(r"\s+", " ", assembled).strip()
+            if any(pattern.search(normalized) for pattern in _DOUBLE_CLITIC_PATTERNS):
+                errors.append("blank_option_duplicates_pronoun_or_article")
+                break
+
+    return errors
+
+
 def canonical_prompt(value: str) -> str:
     return normalize_text(clean_quiz_prompt(value))
 
@@ -98,4 +151,5 @@ def validate_question(
         ):
             errors.append("conjugation_prompt_unclear")
 
+    errors.extend(validate_surface_contract(item))
     return errors

@@ -157,15 +157,33 @@ def prepare_block(
 
         for (question_type, topic), target_position in zip(plan, positions):
             selected = None
+            slot_errors: list[str] = []
 
-            for _ in range(4):
-                candidate = generate_question(
-                    level=level,
-                    session=effective_session,
-                    question_type=question_type,
-                    topic=topic,
-                    forbidden_prompts=forbidden_prompts,
-                )
+            # A bad candidate must not cancel the whole block immediately.
+            # Each slot gets several independent generation cycles; the generator
+            # itself also uses reviewer feedback for targeted correction.
+            for cycle in range(1, 4):
+                try:
+                    candidate = generate_question(
+                        level=level,
+                        session=effective_session,
+                        question_type=question_type,
+                        topic=topic,
+                        forbidden_prompts=forbidden_prompts,
+                    )
+                except Exception as exc:
+                    slot_errors.append(f"cycle {cycle}: {str(exc)[:500]}")
+                    log.warning(
+                        "Slot generation cycle failed | session=%s | type=%s | "
+                        "topic=%s | cycle=%s | error=%s",
+                        effective_session,
+                        question_type,
+                        topic,
+                        cycle,
+                        str(exc)[:700],
+                    )
+                    continue
+
                 candidate = _move_correct_answer(candidate, target_position)
                 candidate_fingerprint = fingerprint(candidate)
 
@@ -180,9 +198,14 @@ def prepare_block(
                     break
 
                 forbidden_prompts.append(candidate.prompt)
+                slot_errors.append(f"cycle {cycle}: duplicate_or_similar")
 
             if selected is None:
-                raise RuntimeError("Не удалось создать уникальный вопрос.")
+                details = " | ".join(slot_errors[-3:])
+                raise RuntimeError(
+                    f"Не удалось подготовить вопрос типа {question_type} после "
+                    f"3 независимых циклов. {details}"
+                )
 
             selected_fingerprint = fingerprint(selected)
             generated.append((selected, selected_fingerprint))
