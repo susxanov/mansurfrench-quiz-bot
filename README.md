@@ -102,3 +102,7 @@ OPENAI_TIMEOUT_SECONDS=180
 - Перед GPT-рецензентом Python собирает все варианты с шаблоном и блокирует двойные местоимения/артикли (`je te t’...`, `en en`, `lui lui` и т. п.).
 - Каждый слот блока получает до трёх независимых циклов генерации; ошибка одного кандидата не завершает блок сразу.
 - Добавлены регрессионные тесты на реальную ошибку вечернего блока от 13 июля 2026.
+
+## Version 5.0.8 — database compatibility
+
+At startup the bot now safely widens legacy PostgreSQL `VARCHAR` columns used for generated metadata to `TEXT`. This is required because SQLAlchemy `create_all()` creates missing tables but does not alter the length of existing columns. Existing questions, blocks, indexes, and unique constraints are preserved.

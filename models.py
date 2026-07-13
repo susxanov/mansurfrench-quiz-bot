@@ -1,4 +1,5 @@
 from datetime import date, datetime
+
 from sqlalchemy import Boolean, Date, DateTime, Float, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -9,14 +10,17 @@ class Base(DeclarativeBase):
 
 class DailyBlock(Base):
     __tablename__ = "daily_blocks"
-    __table_args__ = (UniqueConstraint("target_date", "session", name="uq_block_date_session"),)
+    __table_args__ = (
+        UniqueConstraint("target_date", "session", name="uq_block_date_session"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     target_date: Mapped[date] = mapped_column(Date, index=True)
-    session: Mapped[str] = mapped_column(String(20), index=True)
-    level: Mapped[str] = mapped_column(String(20))
-    topic: Mapped[str] = mapped_column(String(160))
-    status: Mapped[str] = mapped_column(String(30), default="planned", index=True)
+    # Human/generated labels are Text so future prompt wording cannot break inserts.
+    session: Mapped[str] = mapped_column(Text, index=True)
+    level: Mapped[str] = mapped_column(Text)
+    topic: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, default="planned", index=True)
     approved: Mapped[bool] = mapped_column(Boolean, default=False)
     generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -29,9 +33,10 @@ class Question(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     block_id: Mapped[int] = mapped_column(Integer, index=True)
     position: Mapped[int] = mapped_column(Integer)
+    # Hashes and internal enums remain bounded; generated pedagogical metadata is Text.
     fingerprint: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    topic: Mapped[str] = mapped_column(String(160), index=True)
-    skill: Mapped[str] = mapped_column(String(100))
+    topic: Mapped[str] = mapped_column(Text, index=True)
+    skill: Mapped[str] = mapped_column(Text)
     question_type: Mapped[str] = mapped_column(String(40))
     prompt: Mapped[str] = mapped_column(Text)
     options: Mapped[list[str]] = mapped_column(JSON)
@@ -47,5 +52,6 @@ class Question(Base):
 
 class BotState(Base):
     __tablename__ = "bot_state"
+
     key: Mapped[str] = mapped_column(String(80), primary_key=True)
     value: Mapped[str] = mapped_column(Text)

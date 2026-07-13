@@ -245,6 +245,9 @@ def prepare_block(
                     )
                 )
 
+            # Flush explicitly here so persistence errors are attributed to the
+            # question insert, not to a later query-triggered autoflush.
+            db.flush()
             block = db.get(DailyBlock, block_id)
             block.status = "pending_approval"
             block.approved = False
