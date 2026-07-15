@@ -16,7 +16,7 @@ from quality import (
     is_duplicate_or_similar,
 )
 from telegram_api import send_quiz, send_text
-from topics import third_question_plan
+from topics import fallback_topics, third_question_plan
 
 log = logging.getLogger(__name__)
 cfg = settings()
@@ -162,13 +162,15 @@ def prepare_block(
             # A bad candidate must not cancel the whole block immediately.
             # Each slot gets several independent generation cycles; the generator
             # itself also uses reviewer feedback for targeted correction.
+            topic_candidates = fallback_topics(question_type, topic)
             for cycle in range(1, 4):
+                cycle_topic = topic_candidates[min(cycle - 1, len(topic_candidates) - 1)]
                 try:
                     candidate = generate_question(
                         level=level,
                         session=effective_session,
                         question_type=question_type,
-                        topic=topic,
+                        topic=cycle_topic,
                         forbidden_prompts=forbidden_prompts,
                     )
                 except Exception as exc:
@@ -178,7 +180,7 @@ def prepare_block(
                         "topic=%s | cycle=%s | error=%s",
                         effective_session,
                         question_type,
-                        topic,
+                        cycle_topic,
                         cycle,
                         str(exc)[:700],
                     )
@@ -236,8 +238,8 @@ def prepare_block(
                         options=item.options,
                         correct_option_ids=[item.correct_option_id],
                         explanation=item.explanation,
-                        comparison_axis="",
-                        surface_constraints={},
+                        comparison_axis=item.comparison_axis,
+                        surface_constraints={"validated_contract": item.comparison_axis},
                         reviewer_score=100.0,
                         reviewer_notes=(
                             "Генерация и независимая редакторская проверка пройдены."

@@ -66,6 +66,41 @@ verified_correct_option_id укажи всегда.
 """.strip()
 
 
+
+def _grammar_contract(topic: str) -> str:
+    key = topic.casefold()
+    common = (
+        f"Грамматический вопрос по теме: {topic}. Prompt обязан содержать ровно "
+        "один пропуск ___. Все options должны быть короткими сопоставимыми формами, "
+        "которые буквально подставляются в пропуск. Контекст должен грамматически "
+        "вынуждать ровно один ответ; прагматически возможный второй ответ запрещён. "
+    )
+    if "артикл" in key:
+        return common + (
+            "Выбери только один безопасный comparison_axis: article_contracted, "
+            "article_after_quantity или article_after_negation. Не создавай общий "
+            "выбор le/la/les против un/une/des, основанный лишь на том, считает ли "
+            "говорящий предмет конкретным: такой вопрос двусмыслен. Для "
+            "article_contracted используй явное управление à/de + определённый артикль; "
+            "для article_after_quantity — явный показатель количества; для "
+            "article_after_negation — стандартное отрицание без глагола être."
+        )
+    if "cod" in key and "coi" not in key:
+        return common + "Используй comparison_axis=pronoun_cod и явный antecedent COD."
+    if "coi" in key:
+        return common + "Используй comparison_axis=pronoun_coi и глагол с à + personne."
+    if "en et y" in key or " en " in f" {key} " or " y" in key:
+        return common + "Используй comparison_axis=pronoun_en_y и явное управление de или à/местом."
+    if "dont" in key:
+        return common + "Используй comparison_axis=relative_dont и глагол/выражение с de."
+    if ("qui" in key or "que" in key or "où" in key or "относитель" in key
+            or "auquel" in key or "duquel" in key or "lequel" in key):
+        return common + "Используй comparison_axis=relative_pronoun и явную синтаксическую роль пропуска."
+    if "двойн" in key:
+        return common + "Используй comparison_axis=double_pronouns и однозначный порядок двух местоимений."
+    return common + "Используй comparison_axis=general_grammar."
+
+
 def _generation_prompt(
     level: str,
     session: str,
@@ -89,16 +124,22 @@ def _generation_prompt(
             "Все 4 options должны быть полными французскими предложениями. "
             "Сохрани точный временной смысл исходной русской фразы. "
             "Если используется «бы», добавь явный контекст настоящего или прошлого, "
-            "чтобы условная конструкция была однозначной."
+            "чтобы условная конструкция была однозначной. "
+            "Используй comparison_axis=translation_full_sentence."
         ),
         "conjugation": (
             "Выбор правильной формы частотного французского глагола в контексте. "
             "Prompt обязан содержать ровно один пропуск ___; options должны содержать "
             "только формы, которые можно буквально подставить в этот пропуск. "
-            "Если местоимение te/t’, lui, en, y уже стоит перед пропуском, не повторяй его в options."
+            "Если местоимение te/t’, lui, en, y уже стоит перед пропуском, не повторяй его в options. "
+            "Используй comparison_axis=conjugation_verb_form."
         ),
-        "lexicon": f"Лексический вопрос по теме: {topic}.",
-        "grammar_pronouns": f"Грамматический вопрос по теме: {topic}.",
+        "lexicon": (
+            f"Лексический вопрос по теме: {topic}. "
+            "Используй comparison_axis=lexicon_context. Контекст обязан делать "
+            "ровно один вариант естественным и правильным."
+        ),
+        "grammar_pronouns": _grammar_contract(topic),
     }[question_type]
     recent_items = [str(prompt)[:180] for prompt in forbidden_prompts[-25:]]
     recent = "\n".join(f"- {prompt}" for prompt in recent_items) or "- нет"

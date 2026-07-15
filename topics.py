@@ -44,3 +44,24 @@ def third_question_plan(target_date, session: str) -> tuple[str, str]:
         return "lexicon", topic
     topic = PRONOUN_TOPICS[(index - 1 + (0 if session == "morning" else 3)) % len(PRONOUN_TOPICS)]
     return "grammar_pronouns", topic
+
+
+def fallback_topics(question_type: str, original_topic: str) -> list[str]:
+    """Return same-type fallback topics ordered from original to safer axes.
+
+    A single ambiguous micro-topic must not cancel the whole scheduled block.
+    """
+    if question_type != "grammar_pronouns":
+        return [original_topic]
+    safe = [
+        original_topic,
+        "Pronoms EN et Y",
+        "DONT",
+        "COD: le, la, les",
+        "COI: lui, leur",
+    ]
+    result = []
+    for topic in safe:
+        if topic not in result:
+            result.append(topic)
+    return result

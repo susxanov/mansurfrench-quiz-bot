@@ -12,6 +12,21 @@ class CandidateQuestion(StrictModel):
     skill: str = Field(min_length=2, max_length=100)
     level: Literal["A1-A2", "B1-B2"]
     question_type: Literal["translation", "conjugation", "lexicon", "grammar_pronouns"]
+    comparison_axis: Literal[
+        "translation_full_sentence",
+        "conjugation_verb_form",
+        "lexicon_context",
+        "pronoun_cod",
+        "pronoun_coi",
+        "pronoun_en_y",
+        "relative_dont",
+        "relative_pronoun",
+        "double_pronouns",
+        "article_contracted",
+        "article_after_quantity",
+        "article_after_negation",
+        "general_grammar",
+    ] = "general_grammar"
     prompt: str = Field(min_length=5, max_length=300)
     options: list[str] = Field(min_length=4, max_length=4)
     correct_option_id: int = Field(ge=0, le=3)

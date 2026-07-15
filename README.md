@@ -106,3 +106,10 @@ OPENAI_TIMEOUT_SECONDS=180
 ## Version 5.0.8 — database compatibility
 
 At startup the bot now safely widens legacy PostgreSQL `VARCHAR` columns used for generated metadata to `TEXT`. This is required because SQLAlchemy `create_all()` creates missing tables but does not alter the length of existing columns. Existing questions, blocks, indexes, and unique constraints are preserved.
+
+## v5.0.9 — deterministic grammar contracts
+
+- Article questions use only deterministic axes: contractions, quantity, or standard negation.
+- Generic definite-vs-indefinite choices based on unstated speaker intent are forbidden.
+- Grammar/pronoun questions require one literal blank and a topic-compatible comparison axis.
+- If a grammar micro-topic repeatedly fails review, the slot falls back to another safe grammar/pronoun topic instead of cancelling the block.

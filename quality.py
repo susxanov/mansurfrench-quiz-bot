@@ -39,6 +39,44 @@ def assemble_blank_variants(prompt: str, options: list[str]) -> list[str]:
     before, after = prompt[:match.start()], prompt[match.end():]
     return [f"{before}{option}{after}" for option in options]
 
+_ARTICLE_OPTIONS = {
+    "au", "aux", "du", "des", "de", "d’", "d'", "de la", "de l’", "de l'",
+    "le", "la", "les", "un", "une"
+}
+_CONTRACTED_ARTICLES = {"au", "aux", "du", "des"}
+_DE_FORMS = {"de", "d’", "d'"}
+_PRONOUN_OPTIONS = {
+    "le", "la", "les", "lui", "leur", "en", "y", "qui", "que", "où", "dont",
+    "me", "m’", "m'", "te", "t’", "t'", "se", "s’", "s'", "nous", "vous"
+}
+_QUANTITY_MARKERS = (
+    "beaucoup", "peu", "assez", "trop", "combien", "plus de", "moins de",
+    "un kilo", "une bouteille", "un verre", "une tranche", "une dizaine"
+)
+_NEGATION_MARKERS = (" ne ", " n’", " n'")
+_NEGATION_WORDS = (" pas ", " plus ", " jamais ", " aucun")
+
+def _norm_option(value: str) -> str:
+    return normalize_text(value).replace("’", "'")
+
+def _topic_axis_allowed(topic: str, axis: str) -> bool:
+    key = normalize_text(topic)
+    if "артикл" in key:
+        return axis in {"article_contracted", "article_after_quantity", "article_after_negation"}
+    if "cod" in key and "coi" not in key:
+        return axis == "pronoun_cod"
+    if "coi" in key:
+        return axis == "pronoun_coi"
+    if "en et y" in key:
+        return axis == "pronoun_en_y"
+    if "dont" in key:
+        return axis == "relative_dont"
+    if any(token in key for token in ("qui", "que", "où", "относитель", "auquel", "duquel", "lequel")):
+        return axis == "relative_pronoun"
+    if "двойн" in key:
+        return axis == "double_pronouns"
+    return axis == "general_grammar"
+
 def validate_surface_contract(item: CandidateQuestion) -> list[str]:
     errors: list[str] = []
     prompt_has_blank = has_blank(item.prompt)
@@ -58,6 +96,46 @@ def validate_surface_contract(item: CandidateQuestion) -> list[str]:
         # Options for a conjugation blank must be compact forms, not full clauses.
         if any(len(option.split()) > 3 for option in item.options):
             errors.append("conjugation_options_too_long")
+
+    if item.question_type == "grammar_pronouns":
+        if not prompt_has_blank or len(_BLANK_RE.findall(item.prompt)) != 1:
+            errors.append("grammar_pronouns_requires_exactly_one_blank")
+        if not _topic_axis_allowed(item.topic, item.comparison_axis):
+            errors.append("grammar_topic_axis_mismatch")
+        if any(len(option.split()) > 3 for option in item.options):
+            errors.append("grammar_options_too_long")
+
+        normalized_options = {_norm_option(option) for option in item.options}
+        prompt_key = f" {normalize_text(item.prompt)} "
+        correct = _norm_option(item.options[item.correct_option_id])
+
+        if item.comparison_axis.startswith("article_"):
+            if not normalized_options.issubset({_norm_option(x) for x in _ARTICLE_OPTIONS}):
+                errors.append("article_options_outside_closed_set")
+            if item.comparison_axis == "article_contracted":
+                if not normalized_options.issubset(_CONTRACTED_ARTICLES):
+                    errors.append("contracted_article_options_must_be_contracted")
+                if correct not in _CONTRACTED_ARTICLES:
+                    errors.append("contracted_article_correct_answer_invalid")
+            elif item.comparison_axis == "article_after_quantity":
+                if not any(marker in prompt_key for marker in _QUANTITY_MARKERS):
+                    errors.append("article_quantity_context_missing")
+                if correct not in {_norm_option(x) for x in _DE_FORMS}:
+                    errors.append("article_quantity_correct_answer_must_be_de")
+            elif item.comparison_axis == "article_after_negation":
+                if not (any(marker in prompt_key for marker in _NEGATION_MARKERS) and
+                        any(marker in prompt_key for marker in _NEGATION_WORDS)):
+                    errors.append("article_negation_context_missing")
+                if " être " in prompt_key or " est " in prompt_key or " sont " in prompt_key:
+                    errors.append("article_negation_etre_exception_forbidden")
+                if correct not in {_norm_option(x) for x in _DE_FORMS}:
+                    errors.append("article_negation_correct_answer_must_be_de")
+
+        if item.comparison_axis.startswith("pronoun_") or item.comparison_axis in {
+            "relative_dont", "relative_pronoun", "double_pronouns"
+        }:
+            if not normalized_options.issubset({_norm_option(x) for x in _PRONOUN_OPTIONS}):
+                errors.append("pronoun_options_outside_closed_set")
 
     if prompt_has_blank:
         for assembled in assemble_blank_variants(item.prompt, item.options):
